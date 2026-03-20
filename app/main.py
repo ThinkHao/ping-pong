@@ -851,6 +851,11 @@ def index() -> FileResponse:
     return FileResponse(BASE_DIR / "app" / "static" / "index.html")
 
 
+@app.get("/healthz")
+def healthz() -> dict:
+    return {"ok": True, "service": "ping-pong"}
+
+
 @app.get("/api/nodes")
 def list_nodes() -> list[dict]:
     return rows("SELECT * FROM exporter_nodes ORDER BY id DESC")

@@ -1,0 +1,28 @@
+services:
+  ping-pong:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ping-pong
+    environment:
+      PING_PONG_DB_PATH: ${PING_PONG_DB_PATH:-/app/data/app.db}
+    ports:
+      - "${APP_PORT:-18080}:18080"
+    volumes:
+      - ./data:/app/data
+      - ./generated:/app/generated
+      - ./published:/app/published
+      - ./history:/app/history
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:18080/healthz', timeout=2).read()",
+        ]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

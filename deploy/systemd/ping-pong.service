@@ -1,0 +1,17 @@
+[Unit]
+Description=Ping Pong Control Plane (FastAPI)
+After=network.target
+
+[Service]
+Type=simple
+User=pingpong
+Group=pingpong
+WorkingDirectory=/opt/ping-pong
+EnvironmentFile=/etc/ping-pong/ping-pong.env
+ExecStart=/opt/ping-pong/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port ${APP_PORT}
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

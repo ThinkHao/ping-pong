@@ -1,9 +1,17 @@
 from __future__ import annotations
 
+import os
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path(__file__).resolve().parents[1] / "data" / "app.db"
+ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_DB_PATH = ROOT / "data" / "app.db"
+DB_PATH_RAW = os.getenv("PING_PONG_DB_PATH", "").strip()
+if DB_PATH_RAW:
+    _candidate = Path(DB_PATH_RAW)
+    DB_PATH = _candidate if _candidate.is_absolute() else (ROOT / _candidate).resolve()
+else:
+    DB_PATH = DEFAULT_DB_PATH
 
 
 def get_conn() -> sqlite3.Connection:

@@ -19,6 +19,28 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 18080 --reload
 
 访问：[http://127.0.0.1:18080/](http://127.0.0.1:18080/)
 
+## Docker Compose
+
+```powershell
+docker compose up -d --build
+```
+
+访问：[http://127.0.0.1:18080/](http://127.0.0.1:18080/)
+
+如需自定义端口或数据库路径，可先执行：
+
+```powershell
+Copy-Item .env.example .env
+```
+
+常用命令：
+
+```powershell
+docker compose ps
+docker compose logs -f ping-pong
+docker compose down
+```
+
 ## One-Command Acceptance
 
 ```powershell
@@ -67,3 +89,28 @@ python scripts/acceptance.py --random-ports --keep-running
 
 任务目标录入示例（前端每行一个）：
 `10.12.101.34 | tag=天津-北京,site=bj`
+
+## systemd (Linux, non-container fallback)
+
+模板文件：
+- `deploy/systemd/ping-pong.service`
+- `deploy/systemd/ping-pong.env.example`
+
+示例步骤（Ubuntu）：
+
+```bash
+sudo useradd --system --create-home --home-dir /opt/ping-pong pingpong || true
+sudo mkdir -p /etc/ping-pong
+sudo cp deploy/systemd/ping-pong.env.example /etc/ping-pong/ping-pong.env
+sudo cp deploy/systemd/ping-pong.service /etc/systemd/system/ping-pong.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now ping-pong
+```
+
+常用命令：
+
+```bash
+sudo systemctl status ping-pong
+sudo journalctl -u ping-pong -f
+sudo systemctl restart ping-pong
+```
