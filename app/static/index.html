@@ -1,0 +1,967 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ping Pong Control Plane</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #eef3fa;
+      --surface: #ffffff;
+      --line: #dbe5f1;
+      --ink: #173453;
+      --muted: #5b6f88;
+      --primary: #0b7a6d;
+      --primary-deep: #085e55;
+      --danger: #bf4040;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: linear-gradient(140deg, #edf3ff 0%, #eef8f1 100%);
+      font-family: "Noto Sans SC", "Microsoft YaHei", sans-serif;
+    }
+    .page { max-width: 1320px; margin: 0 auto; padding: 16px; }
+    .hero {
+      padding: 18px 20px;
+      border-radius: 16px;
+      background: linear-gradient(130deg, #0f355f, #0c675f);
+      color: #f2f8ff;
+      box-shadow: 0 12px 32px rgba(12, 44, 75, .25);
+    }
+    .hero h1 { margin: 0; font-size: 27px; font-family: "Manrope", sans-serif; }
+    .hero p { margin: 8px 0 0; font-size: 14px; color: #d5e8ff; }
+    .flash { min-height: 18px; margin-top: 8px; font-size: 12px; color: #ffe8ba; }
+
+    .view-tabs { display: flex; gap: 8px; margin: 12px 0; }
+    .tab-btn {
+      border: 1px solid #c3d4e7;
+      background: #f7fbff;
+      color: #275175;
+      border-radius: 999px;
+      padding: 8px 16px;
+      font-family: "Manrope", sans-serif;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .tab-btn.active { background: #123f66; color: #fff; border-color: #123f66; }
+
+    .view.hidden { display: none; }
+    .layout { display: grid; grid-template-columns: 360px 1fr; gap: 12px; align-items: start; }
+    .stack { display: grid; gap: 12px; }
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--surface);
+      padding: 12px;
+      box-shadow: 0 8px 20px rgba(20, 45, 76, .08);
+    }
+    .panel h2 {
+      margin: 0 0 10px;
+      font-size: 16px;
+      font-family: "Manrope", sans-serif;
+    }
+    .muted { color: var(--muted); font-size: 12px; }
+
+    .field { margin-bottom: 8px; }
+    input, select, textarea, button {
+      width: 100%;
+      border: 1px solid #c9d8e7;
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-size: 14px;
+      line-height: 1.35;
+      color: var(--ink);
+      background: #fff;
+      font-family: "Noto Sans SC", "Microsoft YaHei", sans-serif;
+      letter-spacing: 0;
+    }
+    textarea { min-height: 88px; resize: vertical; }
+    button {
+      border: none;
+      color: #fff;
+      background: var(--primary);
+      font-weight: 600;
+      cursor: pointer;
+      transition: .15s ease;
+    }
+    button:hover { background: var(--primary-deep); }
+    button.secondary { background: #2c5f95; }
+    button.danger { background: var(--danger); }
+    .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .btn-row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+
+    .table-wrap {
+      max-height: 300px;
+      overflow: auto;
+      border: 1px solid #e2ebf5;
+      border-radius: 10px;
+      background: #fff;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td {
+      padding: 7px 8px;
+      border-bottom: 1px solid #edf3fa;
+      text-align: left;
+      white-space: nowrap;
+    }
+    th { background: #f6faff; color: #3c5a79; position: sticky; top: 0; z-index: 1; }
+    tr.click-row { cursor: pointer; }
+    tr.click-row.active td { background: #eaf4ff; }
+
+    pre {
+      margin: 0;
+      background: #0f1f35;
+      color: #dcecff;
+      border-radius: 10px;
+      padding: 10px;
+      max-height: 380px;
+      overflow: auto;
+      font-size: 12px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(10, 20, 36, .45);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+    }
+    .modal {
+      width: min(980px, 92vw);
+      max-height: 85vh;
+      overflow: auto;
+      background: #fff;
+      border: 1px solid #d2dfef;
+      border-radius: 14px;
+      padding: 14px;
+      box-shadow: 0 18px 38px rgba(10, 32, 59, .35);
+    }
+    .modal h3 {
+      margin: 0 0 8px;
+      font-size: 18px;
+      font-family: "Manrope", sans-serif;
+    }
+
+    .status-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 99px;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+    .ok { background: #2f8f5b; }
+    .bad { background: #bf4040; }
+
+    @media (max-width: 1080px) { .layout { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <section class="hero">
+      <h1>Ping Pong Control Plane</h1>
+      <p>以 Prometheus 配置为源头：管理 exporter 节点，查看/编辑已有 ICMP 任务，创建新的 ping_status 目标组任务</p>
+      <div class="flash" id="flash"></div>
+    </section>
+
+    <section class="view-tabs">
+      <button class="tab-btn active" data-view="tasks">ICMP任务</button>
+      <button class="tab-btn" data-view="resources">资源管理</button>
+    </section>
+
+    <section class="view" id="view-tasks">
+      <div class="layout">
+        <div class="stack">
+          <div class="panel">
+            <h2>任务来源实例</h2>
+            <div class="field"><select id="task_instance_id"></select></div>
+            <div class="btn-row3">
+              <button class="secondary" onclick="reloadIcmpTasks(true)">刷新任务</button>
+              <button onclick="reloadPrometheus()">触发Reload</button>
+              <button onclick="publishToRemote()">发布到远端</button>
+            </div>
+            <div class="field" style="margin-top:8px;"><button class="secondary" onclick="previewPublishToRemote()">发布预览Diff</button></div>
+            <div class="muted" style="margin-top:8px;" id="task_prom_path">-</div>
+            <pre id="publish_preview" style="margin-top:8px;max-height:220px;">(点击“发布预览Diff”查看变更)</pre>
+          </div>
+
+          <div class="panel">
+            <h2 id="task_form_title">创建ICMP任务</h2>
+            <div class="field"><input id="icmp_job_name" placeholder="job_name，例如 ping_status_bj" /></div>
+            <div class="field"><input id="icmp_file_name" placeholder="目标文件名，例如 ping_status_bj.yml" /></div>
+            <div class="field"><select id="icmp_node_id"></select></div>
+            <div class="field"><input id="icmp_scrape_interval" placeholder="抓取周期，可空（例如 30s）" /></div>
+            <div class="field">
+              <button class="secondary" onclick="openTargetsModal()">编辑目标组（新窗口）</button>
+              <div class="muted" id="icmp_target_count" style="margin-top:6px;">当前目标数: 0</div>
+            </div>
+            <div class="btn-row3">
+              <button onclick="createIcmpTask()">创建</button>
+              <button class="secondary" onclick="updateIcmpTask()">保存修改</button>
+              <button class="danger" onclick="deleteIcmpTask()">删除任务</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="stack">
+          <div class="panel">
+            <h2>ICMP任务列表（点击行可编辑）</h2>
+            <div class="table-wrap" id="icmp_task_list"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="view hidden" id="view-resources">
+      <div class="layout">
+        <div class="stack">
+          <div class="panel">
+            <h2 id="node_form_title">新增Exporter节点</h2>
+            <div class="field"><input id="node_name" placeholder="节点名" /></div>
+            <div class="field"><input id="node_region" placeholder="区域，例如 cn-beijing" /></div>
+            <div class="field"><input id="node_base_url" placeholder="http://10.0.0.5:9115" /></div>
+            <div class="btn-row">
+              <button onclick="saveNode()">保存节点</button>
+              <button class="secondary" onclick="resetNodeForm()">清空</button>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h2 id="prom_form_title">新增Prometheus实例</h2>
+            <div class="field"><input id="prom_name" placeholder="实例名，例如 prom-prod" /></div>
+            <div class="field"><input id="prom_base_url" placeholder="Prometheus地址，例如 http://10.0.0.10:9090" /></div>
+            <div class="field"><input id="prom_remote_path" placeholder="远端prometheus.yml路径（展示/记录），例如 /opt/prometheus/conf/prometheus.yml" /></div>
+            <div class="field"><input id="prom_local_sync_path" placeholder="本地同步路径（可选，需本机可访问），例如 C:/ops/conf/prometheus.yml" /></div>
+            <div class="field"><input id="prom_deploy_host" placeholder="发布通道: 远端主机IP，例如 192.168.9.104" /></div>
+            <div class="field"><input id="prom_deploy_port" placeholder="发布通道: SSH端口，默认 22" /></div>
+            <div class="field"><input id="prom_deploy_user" placeholder="发布通道: SSH用户，例如 root" /></div>
+            <div class="field"><input id="prom_deploy_key_path" placeholder="发布通道: 私钥路径（可选）" /></div>
+            <div class="field"><input id="prom_deploy_password" type="password" placeholder="发布通道: 密码（可选，建议用密钥）" /></div>
+            <div class="field"><label class="muted"><input id="prom_deploy_use_sudo" type="checkbox" style="width:auto;margin-right:6px;">发布时使用 sudo 写远端目录</label></div>
+            <div class="btn-row">
+              <button onclick="savePromInstance()">保存实例</button>
+              <button class="secondary" onclick="resetPromForm()">清空</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="stack">
+          <div class="panel">
+            <h2>Exporter节点列表（点击查看状态）</h2>
+            <div class="table-wrap" id="node_list"></div>
+            <div class="muted" style="margin:8px 0 6px;">节点详情</div>
+            <div class="table-wrap" id="node_detail"></div>
+          </div>
+
+          <div class="panel">
+            <h2>Prometheus实例列表（点击查看详情）</h2>
+            <div class="table-wrap" id="prom_list"></div>
+            <div class="muted" style="margin:8px 0 6px;">实例详情</div>
+            <div class="table-wrap" id="prom_detail"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+  <div class="modal-backdrop" id="targets_modal_backdrop">
+    <div class="modal">
+      <h3 id="targets_modal_title">编辑目标组</h3>
+      <div class="muted" style="margin-bottom:8px;">结构化编辑：逐行维护 target 和 labels（labels 格式 `k1=v1,k2=v2`）</div>
+      <div class="field">
+        <div class="table-wrap" id="targets_grid_wrap" style="max-height:360px;"></div>
+      </div>
+      <div class="btn-row" style="margin-bottom:8px;">
+        <button class="secondary" onclick="addTargetRow()">新增一行</button>
+        <button class="secondary" onclick="toggleTargetsImport()">文本导入/替换</button>
+      </div>
+      <div id="targets_import_box" style="display:none;">
+        <div class="muted" style="margin-bottom:6px;">批量导入格式：每行 `目标 | k1=v1,k2=v2`</div>
+        <textarea id="targets_import_text" style="min-height:130px;" placeholder="10.12.101.34 | tag=天津-北京,site=bj"></textarea>
+        <div class="btn-row" style="margin-top:8px;margin-bottom:8px;">
+          <button class="secondary" onclick="applyTargetsImport()">应用导入</button>
+          <button class="secondary" onclick="targets_import_box.style.display='none'">收起</button>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button onclick="saveTargetsModal()">保存目标组</button>
+        <button class="secondary" onclick="closeTargetsModal()">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let nodesData = [];
+    let promInstancesData = [];
+    let icmpTasksData = [];
+    let selectedNodeId = null;
+    let selectedPromInstanceId = null;
+    let selectedEditNodeId = null;
+    let selectedEditPromId = null;
+    let selectedIcmpTaskKey = null;
+    let taskTargetsDraft = [];
+    let nodeDetailSeq = 0;
+    let promDetailSeq = 0;
+    let lastTaskHint = '';
+
+    function notify(message, isError = false) {
+      const el = document.getElementById('flash');
+      el.textContent = message || '';
+      el.style.color = isError ? '#ffd6d6' : '#ffe8ba';
+      if (message) setTimeout(() => { if (el.textContent === message) el.textContent = ''; }, 4200);
+    }
+
+    async function api(path, opt = {}) {
+      const res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opt });
+      const text = await res.text();
+      let body;
+      try { body = JSON.parse(text); } catch { body = text; }
+      if (!res.ok) {
+        const msg = body && body.detail ? body.detail : `HTTP ${res.status}`;
+        throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
+      }
+      return body;
+    }
+
+    function escapeHtml(s) {
+      return String(s || '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
+    function htmlTable(items, cols) {
+      if (!items || !items.length) return '<div class="muted" style="padding:8px;">暂无数据</div>';
+      return `<table><tr>${cols.map(c => `<th>${c}</th>`).join('')}</tr>${items.map(i => `<tr>${cols.map(c => `<td>${escapeHtml(i[c] ?? '')}</td>`).join('')}</tr>`).join('')}</table>`;
+    }
+
+    function parseLabelPairs(raw) {
+      const labels = {};
+      if (!raw) return labels;
+      raw.split(',').map(x => x.trim()).filter(Boolean).forEach(pair => {
+        const idx = pair.indexOf('=');
+        if (idx <= 0) return;
+        labels[pair.slice(0, idx).trim()] = pair.slice(idx + 1).trim();
+      });
+      return labels;
+    }
+
+    function parseTargetLines(text) {
+      const rows = text.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+      const targets = rows.map(row => {
+        const parts = row.split('|');
+        return { target: (parts[0] || '').trim(), labels: parseLabelPairs((parts[1] || '').trim()) };
+      }).filter(x => x.target);
+      if (!targets.length) throw new Error('请至少输入一个目标');
+      return targets;
+    }
+
+    function serializeTargets(targets) {
+      return (targets || []).map(item => {
+        const pairs = Object.entries(item.labels || {}).map(([k, v]) => `${k}=${v}`).join(',');
+        return pairs ? `${item.target} | ${pairs}` : `${item.target}`;
+      }).join('\n');
+    }
+
+    function taskKey(task) {
+      return `${task.job_name}||${task.file_name}`;
+    }
+
+    function renderNodeList(items) {
+      if (!items.length) return '<div class="muted" style="padding:8px;">暂无节点</div>';
+      const rows = items.map(i => `
+        <tr class="click-row ${selectedNodeId === i.id ? 'active' : ''}" onclick="loadNodeStatus(${i.id})">
+          <td>${i.id}</td><td>${escapeHtml(i.name)}</td><td>${escapeHtml(i.region)}</td><td>${escapeHtml(i.base_url)}</td>
+          <td>
+            <button class="secondary" style="width:auto;padding:4px 8px;font-size:12px;" onclick="editNode(event, ${i.id})">编辑</button>
+            <button class="danger" style="width:auto;padding:4px 8px;font-size:12px;" onclick="deleteNode(event, ${i.id})">删除</button>
+          </td>
+        </tr>
+      `).join('');
+      return `<table><tr><th>id</th><th>name</th><th>region</th><th>base_url</th><th>action</th></tr>${rows}</table>`;
+    }
+
+    function renderNodeDetail(d) {
+      if (!d) return '<div class="muted" style="padding:8px;">未选择节点</div>';
+      const online = !!(d.connectivity && d.connectivity.online);
+      return `
+        <div style="padding:8px;">
+          <div><span class="status-dot ${online ? 'ok' : 'bad'}"></span>${online ? 'Online' : 'Offline'}</div>
+          <div class="muted">节点: ${escapeHtml(d.node?.name || '-')} (${escapeHtml(d.node?.region || '-')})</div>
+          <div class="muted">版本: ${escapeHtml(d.node?.version || '-')}</div>
+          <div class="muted" style="margin:6px 0;">metrics 预览</div>
+          <pre>${escapeHtml(d.metrics_preview || '(无)')}</pre>
+        </div>
+      `;
+    }
+
+    function renderPromList(items) {
+      if (!items.length) return '<div class="muted" style="padding:8px;">暂无实例</div>';
+      const rows = items.map(i => `
+        <tr class="click-row ${selectedPromInstanceId === i.id ? 'active' : ''}" onclick="selectPromInstance(${i.id})">
+          <td>${i.id}</td><td>${escapeHtml(i.name)}</td><td>${escapeHtml(i.base_url)}</td><td>${escapeHtml(i.remote_prom_path || i.output_path || '')}</td><td>${escapeHtml(i.status)}</td>
+          <td>
+            <button class="secondary" style="width:auto;padding:4px 8px;font-size:12px;" onclick="editPromInstance(event, ${i.id})">编辑</button>
+            <button class="danger" style="width:auto;padding:4px 8px;font-size:12px;" onclick="deletePromInstance(event, ${i.id})">删除</button>
+          </td>
+        </tr>
+      `).join('');
+      return `<table><tr><th>id</th><th>name</th><th>base_url</th><th>prom_path</th><th>status</th><th>action</th></tr>${rows}</table>`;
+    }
+
+    function renderPromDetail(d) {
+      if (!d) return '<div class="muted" style="padding:8px;">未选择实例</div>';
+      const healthy = !!(d.connectivity && d.connectivity.healthy);
+      const build = d.buildinfo || {};
+      const runtime = d.runtimeinfo || {};
+      const remoteConfig = d.config?.preview || '';
+      const localConfig = d.config?.local_preview || '';
+      const displayConfig = remoteConfig || localConfig || '(无配置)';
+      const displaySource = remoteConfig ? '远端运行配置（/api/v1/status/config）' : (localConfig ? '本地同步配置' : '无');
+      return `
+        <div style="padding:8px;">
+          <div><span class="status-dot ${healthy ? 'ok' : 'bad'}"></span>${healthy ? 'Healthy' : 'Unhealthy'}</div>
+          <div class="muted">版本: ${escapeHtml(build.version || '-')}</div>
+          <div class="muted">启动时间: ${escapeHtml(runtime.startTime || '-')}</div>
+          <div class="muted">远端配置路径: ${escapeHtml(d.instance?.remote_prom_path || '-')}</div>
+          <div class="muted">本地同步路径: ${escapeHtml(d.instance?.local_sync_path || d.config?.local_path || '-')}</div>
+          <div class="muted" style="margin:6px 0;">当前配置（显示源: ${escapeHtml(displaySource)}）</div>
+          <pre>${escapeHtml(displayConfig)}</pre>
+          ${localConfig && remoteConfig ? `<div class="muted" style="margin-top:6px;">本地同步文件预览</div><pre>${escapeHtml(localConfig)}</pre>` : ''}
+        </div>
+      `;
+    }
+
+    function renderIcmpTaskList(items) {
+      if (!items.length) return '<div class="muted" style="padding:8px;">该实例暂无ICMP任务</div>';
+      const rows = items.map(i => {
+        const key = taskKey(i);
+        const editable = i.editable ? '是' : '否';
+        return `
+          <tr class="click-row ${selectedIcmpTaskKey === key ? 'active' : ''}" onclick="selectIcmpTask('${encodeURIComponent(key)}')">
+            <td>${escapeHtml(i.job_name)}</td>
+            <td>${escapeHtml(i.file_name || '-')}</td>
+            <td>${escapeHtml(i.node_name || i.exporter_address || '-')}</td>
+            <td>${(i.targets || []).length}</td>
+            <td>${editable}</td>
+            <td><button class="secondary" style="width:auto;padding:4px 8px;font-size:12px;" onclick="openTargetsModal('${encodeURIComponent(key)}');event.stopPropagation();">编辑目标</button></td>
+          </tr>
+        `;
+      }).join('');
+      return `<table><tr><th>job_name</th><th>file</th><th>exporter</th><th>targets</th><th>editable</th><th>action</th></tr>${rows}</table>`;
+    }
+
+    function setView(view) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.view === view));
+      document.getElementById('view-tasks').classList.toggle('hidden', view !== 'tasks');
+      document.getElementById('view-resources').classList.toggle('hidden', view !== 'resources');
+    }
+
+    function updateTargetCount() {
+      icmp_target_count.textContent = `当前目标数: ${(taskTargetsDraft || []).length}`;
+    }
+
+    function resetTaskForm() {
+      selectedIcmpTaskKey = null;
+      document.getElementById('task_form_title').textContent = '创建ICMP任务';
+      icmp_job_name.value = '';
+      icmp_file_name.value = '';
+      icmp_scrape_interval.value = '';
+      taskTargetsDraft = [];
+      updateTargetCount();
+    }
+
+    function closeTargetsModal() {
+      targets_modal_backdrop.style.display = 'none';
+    }
+
+    function labelsToText(labels) {
+      return Object.entries(labels || {}).map(([k, v]) => `${k}=${v}`).join(',');
+    }
+
+    function renderTargetsGrid() {
+      if (!taskTargetsDraft.length) {
+        targets_grid_wrap.innerHTML = '<div class="muted" style="padding:8px;">暂无目标，请新增一行</div>';
+        return;
+      }
+      const rows = taskTargetsDraft.map((item, idx) => `
+        <tr>
+          <td style="width:52px;">${idx + 1}</td>
+          <td><input value="${escapeHtml(item.target || '')}" placeholder="目标IP或域名" oninput="updateTargetRow(${idx}, 'target', this.value)" /></td>
+          <td><input value="${escapeHtml(labelsToText(item.labels || {}))}" placeholder="k1=v1,k2=v2" oninput="updateTargetRow(${idx}, 'labels', this.value)" /></td>
+          <td style="width:76px;"><button class="danger" style="padding:4px 8px;font-size:12px;" onclick="removeTargetRow(${idx})">删除</button></td>
+        </tr>
+      `).join('');
+      targets_grid_wrap.innerHTML = `<table><tr><th>#</th><th>target</th><th>labels</th><th>action</th></tr>${rows}</table>`;
+    }
+
+    function addTargetRow() {
+      taskTargetsDraft.push({ target: '', labels: {} });
+      renderTargetsGrid();
+    }
+
+    function removeTargetRow(idx) {
+      taskTargetsDraft.splice(idx, 1);
+      renderTargetsGrid();
+    }
+
+    function updateTargetRow(idx, field, value) {
+      if (!taskTargetsDraft[idx]) return;
+      if (field === 'target') {
+        taskTargetsDraft[idx].target = String(value || '').trim();
+      } else if (field === 'labels') {
+        taskTargetsDraft[idx].labels = parseLabelPairs(value || '');
+      }
+    }
+
+    function toggleTargetsImport() {
+      targets_import_box.style.display = targets_import_box.style.display === 'none' ? 'block' : 'none';
+      if (targets_import_box.style.display === 'block') {
+        targets_import_text.value = serializeTargets(taskTargetsDraft);
+      }
+    }
+
+    function applyTargetsImport() {
+      try {
+        taskTargetsDraft = parseTargetLines(targets_import_text.value);
+        renderTargetsGrid();
+        notify('导入成功，已替换当前目标组草稿');
+      } catch (e) {
+        notify(e.message, true);
+      }
+    }
+
+    function openTargetsModal(encodedKey = '') {
+      if (encodedKey) {
+        selectIcmpTask(encodedKey, false);
+      }
+      if (!taskTargetsDraft.length && selectedIcmpTaskKey) {
+        const item = icmpTasksData.find(t => taskKey(t) === selectedIcmpTaskKey);
+        taskTargetsDraft = (item?.targets || []).map(x => ({ target: x.target, labels: { ...(x.labels || {}) } }));
+      }
+      if (encodedKey) {
+        const key = decodeURIComponent(encodedKey);
+        const item = icmpTasksData.find(t => taskKey(t) === key);
+        targets_modal_title.textContent = `编辑目标组: ${item?.job_name || ''}`;
+      } else {
+        targets_modal_title.textContent = `编辑目标组: ${icmp_job_name.value || '新任务'}`;
+      }
+      if (!taskTargetsDraft.length) taskTargetsDraft = [{ target: '', labels: {} }];
+      renderTargetsGrid();
+      targets_import_box.style.display = 'none';
+      targets_modal_backdrop.style.display = 'flex';
+    }
+
+    function saveTargetsModal() {
+      try {
+        taskTargetsDraft = (taskTargetsDraft || [])
+          .map(x => ({ target: String(x.target || '').trim(), labels: x.labels || {} }))
+          .filter(x => x.target);
+        if (!taskTargetsDraft.length) throw new Error('请至少保留一个有效探测目标');
+        updateTargetCount();
+        closeTargetsModal();
+        notify('目标组草稿已保存');
+      } catch (e) {
+        notify(e.message, true);
+      }
+    }
+
+    function resetNodeForm() {
+      selectedEditNodeId = null;
+      node_form_title.textContent = '新增Exporter节点';
+      node_name.value = '';
+      node_region.value = '';
+      node_base_url.value = '';
+    }
+
+    function resetPromForm() {
+      selectedEditPromId = null;
+      prom_form_title.textContent = '新增Prometheus实例';
+      prom_name.value = '';
+      prom_base_url.value = '';
+      prom_remote_path.value = '';
+      prom_local_sync_path.value = '';
+      prom_deploy_host.value = '';
+      prom_deploy_port.value = '22';
+      prom_deploy_user.value = '';
+      prom_deploy_key_path.value = '';
+      prom_deploy_password.value = '';
+      prom_deploy_use_sudo.checked = false;
+    }
+
+    function bindPromFormById(id) {
+      const item = promInstancesData.find(x => x.id === id);
+      if (!item) return;
+      selectedEditPromId = id;
+      prom_form_title.textContent = `编辑Prometheus实例 #${id}`;
+      prom_name.value = item.name || '';
+      prom_base_url.value = item.base_url || '';
+      prom_remote_path.value = item.remote_prom_path || item.output_path || '';
+      prom_local_sync_path.value = item.local_sync_path || '';
+      prom_deploy_host.value = item.deploy_host || '';
+      prom_deploy_port.value = String(item.deploy_port || 22);
+      prom_deploy_user.value = item.deploy_user || '';
+      prom_deploy_key_path.value = item.deploy_key_path || '';
+      prom_deploy_password.value = '';
+      prom_deploy_use_sudo.checked = !!item.deploy_use_sudo;
+    }
+
+    async function refreshBaseData() {
+      const [nodes, instances] = await Promise.all([api('/api/nodes'), api('/api/prometheus/instances')]);
+      nodesData = nodes || [];
+      promInstancesData = instances || [];
+
+      node_list.innerHTML = renderNodeList(nodesData);
+      prom_list.innerHTML = renderPromList(promInstancesData);
+
+      const nodeOptions = nodesData.length
+        ? nodesData.map(n => `<option value="${n.id}">${n.id} | ${escapeHtml(n.name)} | ${escapeHtml(n.region)}</option>`).join('')
+        : '<option value="">请先创建Exporter节点</option>';
+      icmp_node_id.innerHTML = nodeOptions;
+
+      const instanceOptions = promInstancesData.length
+        ? promInstancesData.map(i => `<option value="${i.id}">${i.id} | ${escapeHtml(i.name)} | ${escapeHtml(i.base_url)}</option>`).join('')
+        : '<option value="">请先创建Prometheus实例</option>';
+      task_instance_id.innerHTML = instanceOptions;
+
+      if (!selectedPromInstanceId || !promInstancesData.some(x => x.id === selectedPromInstanceId)) {
+        selectedPromInstanceId = promInstancesData.length ? promInstancesData[0].id : null;
+      }
+      if (selectedPromInstanceId) {
+        task_instance_id.value = String(selectedPromInstanceId);
+        prom_list.innerHTML = renderPromList(promInstancesData);
+        await loadPromStatus(selectedPromInstanceId);
+        await reloadIcmpTasks(true);
+      } else {
+        prom_detail.innerHTML = '<div class="muted" style="padding:8px;">未选择实例</div>';
+        icmp_task_list.innerHTML = '<div class="muted" style="padding:8px;">暂无数据</div>';
+      }
+    }
+
+    async function selectPromInstance(id) {
+      selectedPromInstanceId = id;
+      task_instance_id.value = String(id);
+      bindPromFormById(id);
+      publish_preview.textContent = '(点击“发布预览Diff”查看变更)';
+      prom_list.innerHTML = renderPromList(promInstancesData);
+      await Promise.all([loadPromStatus(id), reloadIcmpTasks(true)]);
+    }
+
+    async function loadPromStatus(id) {
+      const seq = ++promDetailSeq;
+      prom_detail.innerHTML = '<div class="muted" style="padding:8px;">正在加载实例详情...</div>';
+      try {
+        const d = await api(`/api/prometheus/instances/${id}/status`);
+        if (seq !== promDetailSeq) return;
+        prom_detail.innerHTML = renderPromDetail(d);
+      } catch (e) {
+        if (seq !== promDetailSeq) return;
+        prom_detail.innerHTML = `<div class="muted" style="padding:8px;color:#bf4040;">${escapeHtml(e.message)}</div>`;
+      }
+    }
+
+    async function reloadIcmpTasks(syncRemote = false) {
+      try {
+        const instanceId = +(task_instance_id.value || selectedPromInstanceId || 0);
+        if (!instanceId) throw new Error('请先选择Prometheus实例');
+        selectedPromInstanceId = instanceId;
+        const qs = syncRemote ? '?sync_remote=true' : '';
+        const data = await api(`/api/prometheus/instances/${instanceId}/icmp-tasks${qs}`);
+        icmpTasksData = data.tasks || [];
+        const manageable = data.manageable !== false;
+        const msg = data.message || '';
+        if (data.auto_initialized) {
+          notify('未检测到本地 prometheus.yml，系统已自动初始化空配置文件');
+        }
+        if (data.synced_from_remote) {
+          notify('已从远端同步 prometheus 配置到本地');
+        }
+        task_prom_path.textContent = manageable
+          ? `prometheus.yml: ${data.prometheus_path || '-'}`
+          : `prometheus.yml: 未启用本地同步（远端只读）`;
+        icmp_task_list.innerHTML = manageable
+          ? renderIcmpTaskList(icmpTasksData)
+          : `<div class="muted" style="padding:8px;">${escapeHtml(msg || '该实例未配置本地同步路径，暂不支持在此编辑 ICMP 任务')}</div>`;
+        if (!manageable && msg && lastTaskHint !== msg) {
+          notify(msg);
+          lastTaskHint = msg;
+        }
+        if (manageable && msg && msg !== 'ok' && lastTaskHint !== msg) {
+          notify(msg);
+          lastTaskHint = msg;
+        }
+        if (manageable && (!msg || msg === 'ok')) lastTaskHint = '';
+        if (selectedIcmpTaskKey && !icmpTasksData.some(t => taskKey(t) === selectedIcmpTaskKey)) {
+          resetTaskForm();
+        }
+      } catch (e) {
+        notify(e.message, true);
+      }
+    }
+
+    function selectIcmpTask(encodedKey, renderList = true) {
+      const key = decodeURIComponent(encodedKey);
+      selectedIcmpTaskKey = key;
+      if (renderList) icmp_task_list.innerHTML = renderIcmpTaskList(icmpTasksData);
+      const item = icmpTasksData.find(t => taskKey(t) === key);
+      if (!item) return;
+      document.getElementById('task_form_title').textContent = `编辑ICMP任务: ${item.job_name}`;
+      icmp_job_name.value = item.job_name || '';
+      icmp_file_name.value = item.file_name || '';
+      icmp_scrape_interval.value = item.scrape_interval || '';
+      taskTargetsDraft = (item.targets || []).map(x => ({ target: x.target, labels: { ...(x.labels || {}) } }));
+      updateTargetCount();
+      if (item.node_id) icmp_node_id.value = String(item.node_id);
+      if (!item.editable) notify('该任务来自 static_configs，仅可查看，不建议在此修改', true);
+    }
+
+    function editNode(event, id) {
+      event.stopPropagation();
+      const item = nodesData.find(x => x.id === id);
+      if (!item) return;
+      selectedEditNodeId = id;
+      node_form_title.textContent = `编辑Exporter节点 #${id}`;
+      node_name.value = item.name || '';
+      node_region.value = item.region || '';
+      node_base_url.value = item.base_url || '';
+    }
+
+    async function saveNode() {
+      try {
+        const payload = {
+          name: node_name.value.trim(),
+          region: node_region.value.trim(),
+          base_url: node_base_url.value.trim()
+        };
+        if (!payload.name || !payload.region || !payload.base_url) {
+          throw new Error('节点名称、区域、地址不能为空');
+        }
+        const path = selectedEditNodeId ? `/api/nodes/${selectedEditNodeId}` : '/api/nodes';
+        const method = selectedEditNodeId ? 'PUT' : 'POST';
+        await api(path, {
+          method,
+          body: JSON.stringify({
+            ...payload
+          })
+        });
+        notify(selectedEditNodeId ? '节点更新成功' : '节点创建成功');
+        resetNodeForm();
+        await refreshBaseData();
+      } catch (e) { notify(e.message, true); }
+    }
+
+    async function deleteNode(event, id) {
+      event.stopPropagation();
+      try {
+        await api(`/api/nodes/${id}`, { method: 'DELETE' });
+        notify('节点已删除');
+        if (selectedEditNodeId === id) resetNodeForm();
+        if (selectedNodeId === id) node_detail.innerHTML = '<div class="muted" style="padding:8px;">未选择节点</div>';
+        await refreshBaseData();
+      } catch (e) { notify(e.message, true); }
+    }
+
+    async function loadNodeStatus(id) {
+      selectedNodeId = id;
+      node_list.innerHTML = renderNodeList(nodesData);
+      const seq = ++nodeDetailSeq;
+      node_detail.innerHTML = '<div class="muted" style="padding:8px;">正在加载节点状态...</div>';
+      try {
+        const d = await api(`/api/nodes/${id}/status`);
+        if (seq !== nodeDetailSeq) return;
+        node_detail.innerHTML = renderNodeDetail(d);
+      } catch (e) {
+        if (seq !== nodeDetailSeq) return;
+        node_detail.innerHTML = `<div class="muted" style="padding:8px;color:#bf4040;">${escapeHtml(e.message)}</div>`;
+      }
+    }
+
+    function editPromInstance(event, id) {
+      event.stopPropagation();
+      bindPromFormById(id);
+    }
+
+    async function savePromInstance() {
+      try {
+        const payload = {
+          name: prom_name.value.trim(),
+          base_url: prom_base_url.value.trim(),
+          reload_path: '/-/reload',
+          auth_type: 'none',
+          username: null,
+          password: null,
+          bearer_token: null,
+          scope_region: null,
+          scope_business: null,
+          remote_prom_path: prom_remote_path.value.trim() || null,
+          local_sync_path: prom_local_sync_path.value.trim() || null,
+          deploy_host: prom_deploy_host.value.trim() || null,
+          deploy_port: +(prom_deploy_port.value || 22),
+          deploy_user: prom_deploy_user.value.trim() || null,
+          deploy_key_path: prom_deploy_key_path.value.trim() || null,
+          deploy_password: prom_deploy_password.value || null,
+          deploy_use_sudo: !!prom_deploy_use_sudo.checked,
+          output_path: null,
+          status: 'active'
+        };
+        if (!payload.name || !payload.base_url) throw new Error('实例名称和地址不能为空');
+        let editId = selectedEditPromId;
+        if (!editId) {
+          const sameName = promInstancesData.find(x => (x.name || '') === payload.name);
+          if (sameName) editId = sameName.id;
+        }
+        const path = editId ? `/api/prometheus/instances/${editId}` : '/api/prometheus/instances';
+        const method = editId ? 'PUT' : 'POST';
+        await api(path, {
+          method,
+          body: JSON.stringify(payload)
+        });
+        notify(editId ? `Prometheus实例更新成功 (#${editId})` : 'Prometheus实例创建成功');
+        if (!payload.local_sync_path) {
+          notify('远端路径已保存；若要直接创建/编辑ICMP任务，请补充本地同步路径', false);
+        }
+        resetPromForm();
+        await refreshBaseData();
+      } catch (e) { notify(e.message, true); }
+    }
+
+    async function deletePromInstance(event, id) {
+      event.stopPropagation();
+      try {
+        await api(`/api/prometheus/instances/${id}`, { method: 'DELETE' });
+        notify('Prometheus实例已删除');
+        if (selectedEditPromId === id) resetPromForm();
+        if (selectedPromInstanceId === id) {
+          selectedPromInstanceId = null;
+          prom_detail.innerHTML = '<div class="muted" style="padding:8px;">未选择实例</div>';
+        }
+        await refreshBaseData();
+      } catch (e) { notify(e.message, true); }
+    }
+
+    async function reloadPrometheus() {
+      try {
+        const instanceId = +(task_instance_id.value || selectedPromInstanceId || 0);
+        if (!instanceId) throw new Error('请先选择Prometheus实例');
+        await api(`/api/prometheus/instances/${instanceId}/reload`, { method: 'POST' });
+        notify('已触发 Prometheus reload');
+        await loadPromStatus(instanceId);
+      } catch (e) { notify(e.message, true); }
+    }
+
+    async function publishToRemote() {
+      try {
+        const instanceId = +(task_instance_id.value || selectedPromInstanceId || selectedEditPromId || 0);
+        if (!instanceId) throw new Error('请先选择或编辑一个 Prometheus 实例');
+        const r = await api(`/api/prometheus/instances/${instanceId}/publish-remote`, { method: 'POST' });
+        const n = (r.transferred || []).length;
+        const merged = r.merged_to_active ? `，已合并 ${r.merged_job_count || 0} 个任务到生效主配置` : '';
+        notify(`发布完成，已上传 ${n} 个文件${merged}；reload=${r.reload_ok ? 'ok' : 'failed'}`);
+        await Promise.all([refreshBaseData(), loadPromStatus(instanceId)]);
+      } catch (e) { notify(e.message, true); }
+    }
+
+    async function previewPublishToRemote() {
+      try {
+        const instanceId = +(task_instance_id.value || selectedPromInstanceId || selectedEditPromId || 0);
+        if (!instanceId) throw new Error('请先选择 Prometheus 实例');
+        const r = await api(`/api/prometheus/instances/${instanceId}/publish-preview`);
+        const head = [
+          `active_config_path: ${r.active_config_path || '-'}`,
+          `remote_prom_path: ${r.remote_prom_path || '-'}`,
+          `will_merge_to_active: ${r.will_merge_to_active ? 'yes' : 'no'}`,
+          `upload_files: ${(r.upload_files || []).length}`,
+          ''
+        ].join('\n');
+        publish_preview.textContent = `${head}${r.diff || '(无差异)'}`;
+        notify('发布预览已生成');
+      } catch (e) { notify(e.message, true); }
+    }
+
+    function buildIcmpPayload(includeJobName = true) {
+      if (!taskTargetsDraft || !taskTargetsDraft.length) {
+        throw new Error('请先点击“编辑目标组（新窗口）”维护至少一个探测目标');
+      }
+      const payload = {
+        job_name: icmp_job_name.value.trim(),
+        file_name: icmp_file_name.value.trim(),
+        node_id: icmp_node_id.value ? +icmp_node_id.value : null,
+        exporter_address: null,
+        scrape_interval: icmp_scrape_interval.value.trim() || null,
+        targets: taskTargetsDraft
+      };
+      if (!includeJobName) delete payload.job_name;
+      if (!payload.job_name) throw new Error('job_name 不能为空');
+      if (!payload.file_name) throw new Error('file_name 不能为空');
+      if (!payload.node_id) throw new Error('请选择Exporter节点');
+      return payload;
+    }
+
+    async function createIcmpTask() {
+      try {
+        const instanceId = +(task_instance_id.value || selectedPromInstanceId || 0);
+        if (!instanceId) throw new Error('请先选择Prometheus实例');
+        await api(`/api/prometheus/instances/${instanceId}/icmp-tasks`, {
+          method: 'POST',
+          body: JSON.stringify(buildIcmpPayload(true))
+        });
+        notify('ICMP任务创建成功');
+        await reloadIcmpTasks(false);
+      } catch (e) { notify(e.message, true); }
+    }
+
+    async function updateIcmpTask() {
+      try {
+        const instanceId = +(task_instance_id.value || selectedPromInstanceId || 0);
+        if (!instanceId) throw new Error('请先选择Prometheus实例');
+        const jobName = icmp_job_name.value.trim();
+        if (!jobName) throw new Error('请先在列表中选择任务或填写 job_name');
+        await api(`/api/prometheus/instances/${instanceId}/icmp-tasks/${encodeURIComponent(jobName)}`, {
+          method: 'PUT',
+          body: JSON.stringify(buildIcmpPayload(true))
+        });
+        notify('ICMP任务已更新');
+        await reloadIcmpTasks(false);
+      } catch (e) { notify(e.message, true); }
+    }
+
+    async function deleteIcmpTask() {
+      try {
+        const instanceId = +(task_instance_id.value || selectedPromInstanceId || 0);
+        if (!instanceId) throw new Error('请先选择Prometheus实例');
+        const jobName = icmp_job_name.value.trim();
+        if (!jobName) throw new Error('请先选择任务');
+        await api(`/api/prometheus/instances/${instanceId}/icmp-tasks/${encodeURIComponent(jobName)}?remove_file=false`, { method: 'DELETE' });
+        notify('ICMP任务已删除');
+        resetTaskForm();
+        await reloadIcmpTasks(false);
+      } catch (e) { notify(e.message, true); }
+    }
+
+    task_instance_id.addEventListener('change', async () => {
+      selectedPromInstanceId = +(task_instance_id.value || 0);
+      if (selectedPromInstanceId) {
+        publish_preview.textContent = '(点击“发布预览Diff”查看变更)';
+        await Promise.all([loadPromStatus(selectedPromInstanceId), reloadIcmpTasks(true)]);
+      }
+    });
+
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.addEventListener('click', () => setView(btn.dataset.view)));
+    targets_modal_backdrop.addEventListener('click', (e) => {
+      if (e.target === targets_modal_backdrop) closeTargetsModal();
+    });
+
+    updateTargetCount();
+    refreshBaseData().catch(e => notify(e.message, true));
+  </script>
+</body>
+</html>
