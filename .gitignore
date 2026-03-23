@@ -26,9 +26,9 @@ secrets.*
 /data/*.db
 
 # Generated artifacts
-generated/*.yml
-published/*.yml
-history/*.yml
+generated/*
+published/*
+history/*
 
 # Tooling/cache
 .pytest_cache/
